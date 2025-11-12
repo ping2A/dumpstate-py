@@ -36,6 +36,8 @@ def _mount(dumpstate: Dumpstate):
 def _crash(dumpstate: Dumpstate):
     LOGGER.info(dumpstate.vm_traces_log)
     LOGGER.info(dumpstate.anr_files_log)
+    for tombstone in dumpstate.tombstones_log:
+        LOGGER.info(tombstone)
 
 
 def _kernel(dumpstate: Dumpstate):
