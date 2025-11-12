@@ -24,6 +24,7 @@ from .socket.ss import Socket, parse_ss
 from .usb import UsbManagerData, parse_usb_manager_state
 from .vm_traces import AnrTrace, parse_anr_traces
 from .vm_traces.anr_files import AnrFileData, parse_anr_files
+from .vm_traces.tombstones import Tombstone, parse_tombstones
 
 SECTION_HEADER = 'header'
 SECTION_MOUNT = 'mount'
@@ -81,6 +82,8 @@ class Dumpstate:
     keyguard_service_log: KeyguardServiceInfo | None = None
     loaded_modules_log: list[LoadedModule] | None = None
     power_info_log: list[PowerEvent] | None = None
+    tombstones_log: list[Tombstone] | None = None
+
 
     def parse(self, raw: BytesIO, sections: dict[str, bool] = None):
         """Parse dumpstate"""
@@ -94,6 +97,7 @@ class Dumpstate:
         if sections.get(SECTION_CRASH, True):
             self.vm_traces_log = parse_anr_traces(self._raw_data)
             self.anr_files_log = parse_anr_files(self._raw_data)
+            self.tombstones_log = parse_tombstones(self._raw_data)
 
         if sections.get(SECTION_GPS, True):
             self.gps_data_log = parse_fused_location(self._raw_data)
