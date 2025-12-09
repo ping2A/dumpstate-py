@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from dumpstate.helper import RawData
 from dumpstate.helper.logging import LOGGER
 
-
 @dataclass
 class BacktraceFrame:
     """Represents a single line/frame in a native backtrace."""
@@ -73,13 +72,14 @@ def parse_tombstones(dumpstate_content: RawData) -> list[Tombstone] | None:
     tombstones: list[Tombstone] = []
     current_tombstone: Tombstone | None = None
     in_backtrace = False
+    parsing_logcat_tombstone = False
 
     # Regex for the start of a standard tombstone (now searches, not matches from start)
     tombstone_start_pattern = re.compile(rb'\*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\* \*\*\*')
     
     # Pattern to find and strip a logcat prefix.
     # Group 1 captures the content *after* the prefix.
-    logcat_prefix_pattern = re.compile(rb'^\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\d+\s+\d+\s+\d+\s+[A-Z]\s+\S+\s*:\s?(.*)$')
+    logcat_prefix_pattern = re.compile(rb'^\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\d+\s+\d+\s+\d+\s+F\s+DEBUG\s*:\s?(.*)$')
 
     # Regex for pid/tid/name line: pid: 10809, tid: 10886, name: thumbThread1  >>> com.package <<<
     pid_tid_pattern = re.compile(rb'pid: (\d+), tid: (\d+), name: (.+?)  >>> (.+?) <<<')
@@ -93,25 +93,37 @@ def parse_tombstones(dumpstate_content: RawData) -> list[Tombstone] | None:
     )
 
     for line in dumpstate_content.lines:
-        # Use search() to find the start pattern anywhere, allowing for logcat prefixes
-        if tombstone_start_pattern.search(line):
+        line_stripped = line.strip()
+
+        logcat_match = logcat_prefix_pattern.match(line_stripped)
+        if logcat_match:
+            line_content = logcat_match.group(1).strip()
+            is_logcat_line = True
+        else:
+            line_content = line_stripped
+            is_logcat_line = False
+        
+        # Check for start of a new tombstone
+        if tombstone_start_pattern.search(line_content):
             if current_tombstone:
                 tombstones.append(current_tombstone)
             current_tombstone = Tombstone()
             in_backtrace = False
+            parsing_logcat_tombstone = is_logcat_line # <-- NEW: Set parsing mode
             continue
 
+        # Check if we are inside a tombstone
         if current_tombstone is None:
-            continue
+            continue # Not parsing, skip line
 
-        line_stripped = line.strip()
-
-        # Check for and strip logcat prefix
-        logcat_match = logcat_prefix_pattern.match(line_stripped)
-        if logcat_match:
-            line_content = logcat_match.group(1).strip()
-        else:
-            line_content = line_stripped
+        # NEW: Check for end of logcat-based tombstone
+        # If we were parsing a logcat tombstone and this line *isn't* one, stop.
+        if parsing_logcat_tombstone and not is_logcat_line:
+            tombstones.append(current_tombstone)
+            current_tombstone = None
+            in_backtrace = False
+            parsing_logcat_tombstone = False
+            continue # This line is not part of the tombstone
         
         line_content_str = line_content.decode('utf-8', errors='replace')
 
