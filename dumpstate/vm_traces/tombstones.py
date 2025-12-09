@@ -109,14 +109,13 @@ def parse_tombstones(dumpstate_content: RawData) -> list[Tombstone] | None:
                 tombstones.append(current_tombstone)
             current_tombstone = Tombstone()
             in_backtrace = False
-            parsing_logcat_tombstone = is_logcat_line # <-- NEW: Set parsing mode
+            parsing_logcat_tombstone = is_logcat_line
             continue
 
         # Check if we are inside a tombstone
         if current_tombstone is None:
             continue # Not parsing, skip line
 
-        # NEW: Check for end of logcat-based tombstone
         # If we were parsing a logcat tombstone and this line *isn't* one, stop.
         if parsing_logcat_tombstone and not is_logcat_line:
             tombstones.append(current_tombstone)
