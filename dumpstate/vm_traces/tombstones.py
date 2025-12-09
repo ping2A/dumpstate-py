@@ -95,13 +95,13 @@ def parse_tombstones(dumpstate_content: RawData) -> list[Tombstone] | None:
     for line in dumpstate_content.lines:
         line_stripped = line.strip()
 
+        line_content = line_stripped
+        is_logcat_line = False
+
         logcat_match = logcat_prefix_pattern.match(line_stripped)
         if logcat_match:
             line_content = logcat_match.group(1).strip()
             is_logcat_line = True
-        else:
-            line_content = line_stripped
-            is_logcat_line = False
         
         # Check for start of a new tombstone
         if tombstone_start_pattern.search(line_content):
